@@ -487,7 +487,6 @@ void ble_write_thread(void)
 	uint16_t i = 0;
 	for (;;) {
 		// create a buffer with Hello World string
-
 		struct uart_data_t buf;
 		buf.len = sprintf(buf.data, "Hello World %d\n", i++);
 
