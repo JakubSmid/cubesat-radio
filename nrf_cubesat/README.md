@@ -1,0 +1,2 @@
+- need to download libcsp and place it into nsc/modules/lib/libcsp
+- add link to libcsp into nsc/nrf/west.yml
