@@ -1,5 +1,4 @@
 #!/bin/bash
-git clone https://github.com/libcsp/libcsp.git
 cd libcsp
 cmake -GNinja -DCSP_ENABLE_PYTHON3_BINDINGS=ON
 ninja
