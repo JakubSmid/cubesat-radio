@@ -53,7 +53,7 @@ New interface contains basically three functions:
 The last modified file is `libcsp/src/bindings/python/pycsp.c` which provides binding to Python. In this file we *created pycsp_basic_init* function which is binded to Python. Calling this you add new interface and you also pass a pointer to the Tx function which is stored in *PyObject \*py_tx_func*. The *fnc* function is used to calling Python function stored in *py_tx_func*.
 
 ## TODO
-- [ ] Write a report (at least 5 pages)
+- [x] Write a report (at least 5 pages)
 - [ ] Ground Station side - instead of using loopback in `example_csp_server_client.py` open connection over the NUS. It means get byte array with the packet from libcsp and send it using bleak (function write_gatt_char).
 - [ ] Nordic side - Create new interface for using the NUS.
 
