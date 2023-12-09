@@ -1,4 +1,4 @@
-# Install script for directory: /home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/arch
+# Install script for directory: /home/kin/cubesat-radio/pc_cubesat/libcsp/src/arch
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -44,6 +44,6 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/arch/posix/cmake_install.cmake")
+  include("/home/kin/cubesat-radio/pc_cubesat/libcsp/src/arch/posix/cmake_install.cmake")
 endif()
 

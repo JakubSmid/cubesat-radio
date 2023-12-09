@@ -1,4 +1,4 @@
-# Install script for directory: /home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/examples
+# Install script for directory: /home/kin/cubesat-radio/pc_cubesat/libcsp/examples
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

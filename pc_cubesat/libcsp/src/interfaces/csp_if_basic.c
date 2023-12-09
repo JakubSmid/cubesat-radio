@@ -13,6 +13,7 @@
 #include <endian.h>
 #include <csp/csp_crc32.h>
 #include <csp/csp_id.h>
+#include <stdio.h>
 
 #define FEND     0xC0
 #define FESC     0xDB
@@ -24,8 +25,8 @@ int csp_basic_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int f
 	csp_basic_interface_data_t *ifdata = iface->interface_data;
 	
 	// --------------- DEBUG call - should be removed -------------------
-	ifdata->tx_func();
-	return CSP_ERR_NONE;
+	//ifdata->tx_func("ahoj", );
+	//return CSP_ERR_NONE;
 	// ------------------------------------------------------------------
 	
 	//void * driver = iface->driver_data;
@@ -195,7 +196,7 @@ void csp_basic_rx(csp_iface_t * iface, const uint8_t * buf, size_t len, void * p
 	}
 }
 
-int csp_basic_add_interface(const char *ifname, csp_basic_tx_func tx_f) {
+int csp_basic_add_interface(const char *ifname, csp_basic_tx_func tx_f, csp_iface_t **return_iface) {
 	if (ifname == NULL) {
 		ifname = CSP_IF_BASIC_DEFAULT_NAME;
 	}
@@ -227,10 +228,10 @@ int csp_basic_add_interface(const char *ifname, csp_basic_tx_func tx_f) {
 	if (ifdata->tx_func == NULL) {
 		return CSP_ERR_INVAL;
 	}
-	
-	// --------------- DEBUG call - should be removed -------------------
-	ifdata->tx_func();
-	// ------------------------------------------------------------------
+
+	if (return_iface) {
+		*return_iface = iface;
+	}
 	
 	return csp_iflist_add(iface);
 }

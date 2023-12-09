@@ -1,4 +1,4 @@
-# Install script for directory: /home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/crypto
+# Install script for directory: /home/kin/cubesat-radio/pc_cubesat/libcsp/src/crypto
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

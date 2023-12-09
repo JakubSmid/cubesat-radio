@@ -36,7 +36,7 @@ typedef struct {
 
 int csp_basic_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me);
 void csp_basic_rx(csp_iface_t * iface, const uint8_t * buf, size_t len, void * pxTaskWoken);
-int csp_basic_add_interface(const char * ifname, csp_basic_tx_func tx_func);
+int csp_basic_add_interface(const char * ifname, csp_basic_tx_func tx_func, csp_iface_t **return_iface);
 
 #ifdef __cplusplus
 }
