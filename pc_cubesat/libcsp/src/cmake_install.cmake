@@ -1,4 +1,4 @@
-# Install script for directory: /home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src
+# Install script for directory: /home/kin/cubesat-radio/pc_cubesat/libcsp/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -44,21 +44,21 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/arch/cmake_install.cmake")
+  include("/home/kin/cubesat-radio/pc_cubesat/libcsp/src/arch/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/crypto/cmake_install.cmake")
+  include("/home/kin/cubesat-radio/pc_cubesat/libcsp/src/crypto/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/drivers/cmake_install.cmake")
+  include("/home/kin/cubesat-radio/pc_cubesat/libcsp/src/drivers/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/smidj/KIN/kin_projekt/pc_cubesat/libcsp/src/interfaces/cmake_install.cmake")
+  include("/home/kin/cubesat-radio/pc_cubesat/libcsp/src/interfaces/cmake_install.cmake")
 endif()
 

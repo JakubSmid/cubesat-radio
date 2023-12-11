@@ -1,5 +1,6 @@
 from bleak import BleakClient
 import asyncio
+from time import sleep
 
 CUBESAT_MAC = "EF:F5:8F:CC:B2:8D"
 UART_TX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e" #Nordic NUS characteristic for TX

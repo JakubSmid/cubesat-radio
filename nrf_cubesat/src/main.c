@@ -32,6 +32,7 @@
 
 #include <zephyr/logging/log.h>
 #include <csp/csp.h>
+#include <csp/interfaces/csp_if_basic.h>
 
 #define LOG_MODULE_NAME peripheral_uart
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
@@ -50,6 +51,22 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define UART_BUF_SIZE CONFIG_BT_NUS_UART_BUFFER_SIZE
 #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
 #define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
+
+int router_start(void);
+int client_start(void);
+
+/* Server port, the port the server listens on for incoming connections from the client. */
+#define SERVER_PORT		10
+
+/* Commandline options */
+static uint8_t server_address = 0;
+//static uint8_t client_address = 1;
+
+/* Test mode, check that server & client can exchange packets */
+static bool test_mode = false;
+static unsigned int successful_ping = 0;
+
+csp_iface_t *iface = NULL;
 
 static K_SEM_DEFINE(ble_init_ok, 0, 1);
 
@@ -347,66 +364,7 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
 			  uint16_t len)
 {
-	/*int err;
-	char addr[BT_ADDR_LE_STR_LEN] = {0};
-
-	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, ARRAY_SIZE(addr));
-
-	LOG_INF("Received data from: %s", addr);
-
-	// print received data to log
-	LOG_INF("Received len: %d", len);*/
-	char *data_copy = k_malloc(len+1);
-	if (!data_copy) {
-		LOG_WRN("Not able to allocate data buffer");
-	}
-	memcpy(data_copy, data, len);
-	data_copy[len] = '\0';
-	LOG_INF("Received data: %s", data_copy);
-	k_free(data_copy);
-
-	// if received data == 1, turn on LED
-	if (data[0] == '1') {
-		dk_set_led_on(DK_LED3);
-	} else if (data[0] == '0') {
-		dk_set_led_off(DK_LED3);
-	}
-
-	// iterate over received data and feed it to UART TX buffer
-	/*for (uint16_t pos = 0; pos != len;) {
-		struct uart_data_t *tx = k_malloc(sizeof(*tx));
-
-		if (!tx) {
-			LOG_WRN("Not able to allocate UART send data buffer");
-			return;
-		}
-
-		* Keep the last byte of TX buffer for potential LF char. *
-		size_t tx_data_size = sizeof(tx->data) - 1;
-
-		if ((len - pos) > tx_data_size) {
-			tx->len = tx_data_size;
-		} else {
-			tx->len = (len - pos);
-		}
-
-		memcpy(tx->data, &data[pos], tx->len);
-
-		pos += tx->len;
-
-		* Append the LF character when the CR character triggered
-		 * transmission from the peer.
-		 *
-		if ((pos == len) && (data[len - 1] == '\r')) {
-			tx->data[tx->len] = '\n';
-			tx->len++;
-		}
-
-		err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
-		if (err) {
-			k_fifo_put(&fifo_uart_tx_data, tx);
-		}
-	}*/
+	csp_basic_rx(iface, data, (size_t)len, NULL);
 }
 
 static struct bt_nus_cb nus_cb = {
@@ -433,9 +391,86 @@ static void configure_gpio(void)
 	}
 }
 
+void tx(const unsigned char *data, unsigned long len)
+{
+	/* Don't go any further until BLE is initialized */
+	k_sem_take(&ble_init_ok, K_FOREVER);
+
+	if (bt_nus_send(NULL, data, (u_int16_t)len)) {
+		LOG_WRN("Failed to send data over BLE connection");
+	}
+}
+
+void client(void)
+{
+	/* Don't go any further until BLE is initialized */
+	k_sem_take(&ble_init_ok, K_FOREVER);
+
+	csp_print("Client task started\n");
+
+	unsigned int count = 'A';
+
+	while (1) {
+
+		k_usleep(test_mode ? 200000 : 1000000);
+
+		/* Send ping to server, timeout 1000 mS, ping size 100 bytes */
+		int result = csp_ping(server_address, 1000, 100, CSP_O_NONE);
+		csp_print("Ping address: %u, result %d [mS]\n", server_address, result);
+        // Increment successful_ping if ping was successful
+        if (result > 0) {
+            ++successful_ping;
+        }
+
+		/* Send reboot request to server, the server has no actual implementation of csp_sys_reboot() and fails to reboot */
+		csp_reboot(server_address);
+		csp_print("reboot system request sent to address: %u\n", server_address);
+
+		/* Send data packet (string) to server */
+
+		/* 1. Connect to host on 'server_address', port SERVER_PORT with regular UDP-like protocol and 1000 ms timeout */
+		csp_conn_t * conn = csp_connect(CSP_PRIO_NORM, server_address, SERVER_PORT, 1000, CSP_O_NONE);
+		if (conn == NULL) {
+			/* Connect failed */
+			csp_print("Connection failed\n");
+			return;
+		}
+
+		/* 2. Get packet buffer for message/data */
+		csp_packet_t * packet = csp_buffer_get(100);
+		if (packet == NULL) {
+			/* Could not get buffer element */
+			csp_print("Failed to get CSP buffer\n");
+			return;
+		}
+
+		/* 3. Copy data to packet */
+        memcpy(packet->data, "Hello world ", 12);
+        memcpy(packet->data + 12, &count, 1);
+        memset(packet->data + 13, 0, 1);
+        count++;
+
+		/* 4. Set packet length */
+		packet->length = (strlen((char *) packet->data) + 1); /* include the 0 termination */
+
+		/* 5. Send packet */
+		csp_send(conn, packet);
+
+		/* 6. Close connection */
+		csp_close(conn);
+	}
+
+	return;
+}
+
 int main(void)
 {
 	csp_init();
+	router_start();
+	int ret = csp_basic_add_interface("BASIC", *tx, &iface);
+	if (ret != 0) {
+		return -1;
+	}
 	
 	int blink_status = 0;
 	int err = 0;
@@ -473,30 +508,10 @@ int main(void)
 		return 0;
 	}
 
+	client_start();
+
 	for (;;) {
 		dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
 		k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
 	}
 }
-
-void ble_write_thread(void)
-{
-	/* Don't go any further until BLE is initialized */
-	k_sem_take(&ble_init_ok, K_FOREVER);
-
-	uint16_t i = 0;
-	for (;;) {
-		// create a buffer with Hello World string
-		struct uart_data_t buf;
-		buf.len = sprintf(buf.data, "Hello World %d\n", i++);
-
-		if (bt_nus_send(NULL, (&buf)->data, (&buf)->len)) {
-			LOG_WRN("Failed to send data over BLE connection");
-		}
-
-		k_sleep(K_MSEC(5000));
-	}
-}
-
-K_THREAD_DEFINE(ble_write_thread_id, STACKSIZE, ble_write_thread, NULL, NULL,
-		NULL, PRIORITY, 0, 0);

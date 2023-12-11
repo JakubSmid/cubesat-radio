@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "csp_if_kiss.h": "c",
+        "csp_if_zmqhub.h": "c"
+    }
+}
