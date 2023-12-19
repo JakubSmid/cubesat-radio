@@ -52,21 +52,15 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
 #define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
 
-int router_start(void);
-int client_start(void);
+/* -------------------------- CSP config ------------------------ */
 
 /* Server port, the port the server listens on for incoming connections from the client. */
-#define SERVER_PORT		10
-
-/* Commandline options */
-static uint8_t server_address = 0;
-//static uint8_t client_address = 1;
-
-/* Test mode, check that server & client can exchange packets */
-static bool test_mode = false;
-static unsigned int successful_ping = 0;
+#define SERVER_PORT	10
 
 csp_iface_t *iface = NULL;
+
+static K_SEM_DEFINE(csp_ok, 0, 1);
+/* -------------------------- END CSP config ------------------------ */
 
 static K_SEM_DEFINE(ble_init_ok, 0, 1);
 
@@ -364,6 +358,11 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 static void bt_receive_cb(struct bt_conn *conn, const uint8_t *const data,
 			  uint16_t len)
 {
+	//LOG_INF("Received %u bytes", len);
+	// print data
+	for (int i = 0; i < len; i++) {
+		LOG_INF("0x%02x", data[i]);
+	}
 	csp_basic_rx(iface, data, (size_t)len, NULL);
 }
 
@@ -396,85 +395,16 @@ void tx(const unsigned char *data, unsigned long len)
 	/* Don't go any further until BLE is initialized */
 	k_sem_take(&ble_init_ok, K_FOREVER);
 
+	LOG_INF("Sending %lu bytes", len);
+
 	if (bt_nus_send(NULL, data, (u_int16_t)len)) {
 		LOG_WRN("Failed to send data over BLE connection");
 	}
 }
 
-void client(void)
-{
-	/* Don't go any further until BLE is initialized */
-	k_sem_take(&ble_init_ok, K_FOREVER);
-
-	csp_print("Client task started\n");
-
-	unsigned int count = 'A';
-
-	while (1) {
-
-		k_usleep(test_mode ? 200000 : 1000000);
-
-		/* Send ping to server, timeout 1000 mS, ping size 100 bytes */
-		int result = csp_ping(server_address, 1000, 100, CSP_O_NONE);
-		csp_print("Ping address: %u, result %d [mS]\n", server_address, result);
-        // Increment successful_ping if ping was successful
-        if (result > 0) {
-            ++successful_ping;
-        }
-
-		/* Send reboot request to server, the server has no actual implementation of csp_sys_reboot() and fails to reboot */
-		csp_reboot(server_address);
-		csp_print("reboot system request sent to address: %u\n", server_address);
-
-		/* Send data packet (string) to server */
-
-		/* 1. Connect to host on 'server_address', port SERVER_PORT with regular UDP-like protocol and 1000 ms timeout */
-		csp_conn_t * conn = csp_connect(CSP_PRIO_NORM, server_address, SERVER_PORT, 1000, CSP_O_NONE);
-		if (conn == NULL) {
-			/* Connect failed */
-			csp_print("Connection failed\n");
-			return;
-		}
-
-		/* 2. Get packet buffer for message/data */
-		csp_packet_t * packet = csp_buffer_get(100);
-		if (packet == NULL) {
-			/* Could not get buffer element */
-			csp_print("Failed to get CSP buffer\n");
-			return;
-		}
-
-		/* 3. Copy data to packet */
-        memcpy(packet->data, "Hello world ", 12);
-        memcpy(packet->data + 12, &count, 1);
-        memset(packet->data + 13, 0, 1);
-        count++;
-
-		/* 4. Set packet length */
-		packet->length = (strlen((char *) packet->data) + 1); /* include the 0 termination */
-
-		/* 5. Send packet */
-		csp_send(conn, packet);
-
-		/* 6. Close connection */
-		csp_close(conn);
-	}
-
-	return;
-}
-
 int main(void)
 {
-	csp_init();
-	router_start();
-	int ret = csp_basic_add_interface("BASIC", *tx, &iface);
-	if (ret != 0) {
-		return -1;
-	}
-	
-	int blink_status = 0;
 	int err = 0;
-
 	configure_gpio();
 
 	err = uart_init();
@@ -508,10 +438,77 @@ int main(void)
 		return 0;
 	}
 
-	client_start();
+	// -------------- CSP server --------------
+	csp_init();
+	k_sem_give(&csp_ok);
+	k_sleep(K_MSEC(100));
+	err = csp_basic_add_interface("BASIC", *tx, &iface);
+	if (err != 0) {
+		LOG_ERR("Failed to initialize CSP basic interface (err: %d)", err);
+		return 0;
+	}
+	LOG_INF("address: %d", iface->addr);
 
+	/* Create socket with no specific socket options, e.g. accepts CRC32, HMAC, etc. if enabled during compilation */
+	csp_socket_t sock = {0};
+
+	/* Bind socket to all ports, e.g. all incoming connections will be handled here */
+	csp_bind(&sock, CSP_ANY);
+
+	/* Create a backlog of 10 connections, i.e. up to 10 new connections can be queued */
+	csp_listen(&sock, 10);
+
+	/* Wait for connections and then process packets on the connection */
+	while (1) {
+
+		/* Wait for a new connection, 10000 mS timeout */
+		csp_conn_t *conn;
+		LOG_INF("waiting for connection");
+		if ((conn = csp_accept(&sock, CSP_MAX_TIMEOUT)) == NULL) {
+			/* timeout */
+			continue;
+		}
+		LOG_INF("New connection");
+
+		/* Read packets on connection, timout is 100 mS */
+		csp_packet_t *packet;
+		while ((packet = csp_read(conn, CSP_MAX_TIMEOUT)) != NULL) {
+			LOG_INF("Packet received\n");
+			switch (csp_conn_dport(conn)) {
+			case SERVER_PORT:
+				/* Process packet here */
+				LOG_INF("Packet received on SERVER_PORT: %s\n", (char *) packet->data);
+				csp_buffer_free(packet);
+				break;
+
+			default:
+				/* Call the default CSP service handler, handle pings, buffer use, etc. */
+				LOG_INF("Call the default CSP service handler");
+				csp_service_handler(packet);
+				break;
+			}
+		}
+
+		/* Close current connection */
+		csp_close(conn);
+	}
+}
+
+void router_thread(void)
+{
+	k_sem_take(&csp_ok, K_FOREVER);
+	LOG_INF("Router thread started");
+	csp_route_work();
+}
+
+void heartbeat_thread(void)
+{
+	int blink_status = 0;
 	for (;;) {
 		dk_set_led(RUN_STATUS_LED, (++blink_status) % 2);
 		k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
 	}
 }
+
+K_THREAD_DEFINE(heartbeat_thread_id, STACKSIZE, heartbeat_thread, NULL, NULL, NULL, PRIORITY, 0, 0);
+K_THREAD_DEFINE(router_thread_id, STACKSIZE, router_thread, NULL, NULL, NULL, PRIORITY, 0, 0);

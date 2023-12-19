@@ -37,6 +37,7 @@ async def basic_iface():
         
         while(True):
             msg = await sub.recv()
+            print(msg)
             await cubesat_ble.write_gatt_char(UART_TX_UUID, msg)
 
 def printer(node: str, color: str) -> Callable:
@@ -48,15 +49,25 @@ def printer(node: str, color: str) -> Callable:
 def client_task(addr: int, port: int) -> None:
     _print = printer('client', '\033[92m')
     _print('Starting client task')
+    time.sleep(5)
 
     while 1:
-        time.sleep(1)
-        try:
-            ping = csp.ping(addr, 1000, 100, csp.CSP_O_NONE)
-            _print('Ping {addr}: {ping}ms'.format(addr=addr, ping=ping))
-        except:
-            pass
+    	ping = csp.ping(10, 5000, 1, csp.CSP_O_NONE)
+    	_print('Ping {addr}: {ping}ms'.format(addr=addr, ping=ping))
+    """
+        conn = csp.connect(csp.CSP_PRIO_NORM, 10, 10, 1000, csp.CSP_O_NONE)
+        if conn is None:
+            raise Exception('Connection failed')
 
+        packet = csp.buffer_get(10)
+        if packet is None:
+            raise Exception('Failed to get CSP buffer')
+
+        data = bytes('Hello', 'ascii') + b'\x00'
+
+        csp.packet_set_data(packet, data)
+        csp.send(conn, packet)
+        time.sleep(30)"""
 
 if __name__ == "__main__":
     csp.init("", "", "")
